@@ -1,3 +1,4 @@
+import json
 from typing import Dict
 from app.modules.decision_assistant.utils import oai_client, tavily_client
 from pydantic import BaseModel
@@ -108,13 +109,15 @@ def generate_constraints(topic: str) -> Constraints:
 
 
 def generate_queries(options: list[str], constraints: list[str]) -> Queries:
+    json_content = json.dumps({"options": options, "constraints": constraints})
+
     res = oai_client.chat.completions.parse(
         model="google/gemini-3.1-flash-lite",
         messages=[
             {"role": "system", "content": EXTRACT_QUERIES_PROMPT},
             {
                 "role": "user",
-                "content": f"Options: {options} and Constraints: {constraints}",
+                "content": f"""Generate queries based on the following JSON input:\n\n {json_content}""",
             },
         ],
         response_format=Queries,
@@ -129,13 +132,17 @@ def generate_queries(options: list[str], constraints: list[str]) -> Queries:
 
 
 def generate_comparison(constraint: str, search_results: list[str]) -> Comparison:
+    json_content = json.dumps(
+        {"constraint": constraint, "search_results": search_results}
+    )
+
     res = oai_client.chat.completions.parse(
         model="google/gemini-3.1-flash-lite",
         messages=[
             {"role": "system", "content": EXTRACT_COMPARISON_PROMPT},
             {
                 "role": "user",
-                "content": f"Constraint: {constraint} and Search Results: {search_results}",
+                "content": f"""Generate a structured comparison based on the following JSON input:\n\n {json_content}""",
             },
         ],
         response_format=Comparison,
@@ -160,13 +167,21 @@ def search_internet(query: str, constraint: str) -> Comparison:
 
 
 def synthesis_answer(topic: str, constraints: list[str], comparisons: list[Comparison]):
+    json_content = json.dumps(
+        {
+            "topic": topic,
+            "constraints": constraints,
+            "comparisons": [comparison.model_dump() for comparison in comparisons],
+        }
+    )
+
     res = oai_client.chat.completions.create(
         model="google/gemini-3.1-flash-lite",
         messages=[
             {"role": "system", "content": SYNTHESIS_PROMPT},
             {
                 "role": "user",
-                "content": f"Topic: {topic}, Constraints: {constraints}, and Comparisons: {comparisons}",
+                "content": f"Generate a final synthesized answer based on the JSON input below.\n\n {json_content}",
             },
         ],
     )
